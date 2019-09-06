@@ -1,0 +1,112 @@
+package com.example.project2.Fragments
+
+import android.annotation.SuppressLint
+import android.arch.lifecycle.Observer
+import android.arch.lifecycle.ViewModelProviders
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.support.v4.app.Fragment
+import android.support.v7.util.DiffUtil
+import android.support.v7.widget.GridLayoutManager
+import android.support.v7.widget.RecyclerView
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
+import com.example.project2.MainActivity
+import com.example.project2.TrackInfo
+import com.example.project2.R
+import com.example.project2.ViewModel.TopTrackViewModel
+import com.example.project2.model.Tracks
+import com.squareup.picasso.Picasso
+import kotlinx.android.synthetic.main.top_track_list.view.*
+
+@SuppressLint("ValidFragment")
+class TopTracks(context: Context): Fragment() {
+    private var adapter = TrackAdapter()
+    private var parentContext: Context = context
+    private lateinit var viewModel: TopTrackViewModel
+    private var trackList: ArrayList<Tracks> = ArrayList()
+    private  lateinit var  topTrackList: RecyclerView
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val view: View? = inflater.inflate(R.layout.fragment_top_tracks, container, false)
+        topTrackList = view!!.findViewById(R.id.top_tracks_list)
+        return view
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // set up recycler review
+        topTrackList.layoutManager = GridLayoutManager(parentContext, 2)
+        viewModel = ViewModelProviders.of(this).get(TopTrackViewModel::class.java)
+        // oberve update from the async task
+        val observer = android.arch.lifecycle.Observer<ArrayList<Tracks>> {
+            topTrackList.adapter = adapter
+            val result = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun areItemsTheSame(p0: Int, p1: Int): Boolean {
+                    return trackList[p0].getTitle() == trackList[p1].getTitle()
+                }
+
+                override fun getOldListSize(): Int {
+                    return trackList.size
+                }
+
+                override fun getNewListSize(): Int {
+                    if (it == null) {
+                        return 0
+                    }
+                    return it.size
+                }
+
+                override fun areContentsTheSame(p0: Int, p1: Int): Boolean {
+                    return (trackList[p0] == trackList[p1])
+                }
+            })
+            result.dispatchUpdatesTo(adapter)
+            trackList = it ?: ArrayList()
+        }
+        // get top tracks data from the api
+        viewModel.getTopTracks().observe(this, observer)
+
+    }
+
+    inner class TrackAdapter: RecyclerView.Adapter<TrackAdapter.TrackViewHolder>() {
+
+        override fun onCreateViewHolder(p0: ViewGroup, p1: Int): TrackViewHolder {
+            val itemView = LayoutInflater.from(p0.context).inflate(R.layout.top_track_list, p0, false)
+            return TrackViewHolder(itemView)
+        }
+
+        override fun onBindViewHolder(p0: TrackViewHolder, p1: Int) {
+            val track =trackList[p1]
+            val trackImages = track.getImage()
+            val index = trackImages.size - 1
+            if (trackImages.size == 0 || trackImages[index].isEmpty()) {
+                // Do nothing for now
+            }
+            else {
+                Picasso.with(this@TopTracks.parentContext).load(trackImages[index]).into(p0.trackImg)
+            }
+            p0.trackTitle.text = track.getTitle()
+            // on track selected start a new activity: TrackInfo
+            p0.itemView.setOnClickListener {
+                val intent = Intent(this@TopTracks.parentContext, TrackInfo::class.java)
+                intent.putExtra("TRACK", track)
+                (activity as MainActivity).startActivity(intent)
+            }
+        }
+
+        override fun getItemCount(): Int {
+            return trackList.size
+        }
+
+        inner class TrackViewHolder(itemView: View): RecyclerView.ViewHolder(itemView) {
+            var trackImg: ImageView = itemView.cover
+            var trackTitle: TextView = itemView.title
+        }
+    }
+}
